@@ -342,14 +342,14 @@ def categorize_transaction(description: str) -> str:
 
 
 def call_azure_ai(prompt: str, system_message: str = "You are FinCoach, a helpful personal finance assistant.") -> str:
-    """Call Azure AI API and return the response text."""
+    """Call Azure AI API with optimized timeout."""
     try:
         endpoint = st.secrets.get("AZURE_API_ENDPOINT", "")
         api_key = st.secrets.get("AZURE_API_KEY", "")
         model = st.secrets.get("MODEL_NAME", "Phi-4")
         
         if not endpoint or not api_key:
-            return "⚙️ AI service not configured. Please check your Streamlit Secrets."
+            return "⚙️ AI service not configured. Check Streamlit Secrets. Demo mode still working!"
         
         headers = {
             "Content-Type": "application/json",
@@ -362,61 +362,67 @@ def call_azure_ai(prompt: str, system_message: str = "You are FinCoach, a helpfu
                 {"role": "system", "content": system_message},
                 {"role": "user", "content": prompt[:4000]}
             ],
-            "max_tokens": 800,
+            "max_tokens": 600,
             "temperature": 0.7
         }
         
-        response = requests.post(endpoint, headers=headers, json=payload, timeout=30)
+        response = requests.post(endpoint, headers=headers, json=payload, timeout=15)
         response.raise_for_status()
         return response.json()["choices"][0]["message"]["content"]
     
     except requests.exceptions.Timeout:
-        return "⏱️ The AI is taking too long to respond. Please try again."
+        return "⏱️ AI response taking too long (network delay). Please try again in a moment."
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 429:
             return "⚠️ Too many requests. Please wait a moment and try again."
         elif e.response.status_code == 401:
-            return "🔑 API key issue. Please check your credentials in Streamlit Secrets."
+            return "🔑 API key error. Check Streamlit Secrets configuration."
         else:
             return "❌ AI service error. Please try again shortly."
     except Exception as e:
-        return f"❌ Unable to connect to AI service. Please check your internet connection."
+        return "❌ Connection error. Check internet and try again."
 
 # ============================================================================
 # DEMO DATA GENERATOR
 # ============================================================================
 
 def generate_demo_data() -> pd.DataFrame:
-    """Generate 6 months of realistic synthetic bank transactions."""
+    """Generate 6 months of realistic synthetic bank transactions using user profile."""
     np.random.seed(42)
     
     transactions = []
     base_date = pd.Timestamp.now() - pd.DateOffset(months=6)
+    
+    # Use user's monthly income if provided, otherwise default to 8500
+    monthly_salary = st.session_state.monthly_income if st.session_state.monthly_income > 0 else 8500
+    
+    # Scale expenses based on income
+    expense_scale = monthly_salary / 8500
     
     # Monthly salary
     for i in range(6):
         transactions.append({
             'Date': base_date + pd.DateOffset(months=i, day=1),
             'Description': 'Monthly Salary Credit',
-            'Amount': 8500,
+            'Amount': monthly_salary,
             'Type': 'Credit'
         })
     
-    # Regular expenses
+    # Regular expenses - scaled to user's income level
     expense_templates = [
         ('Careem ride', -45, 8), ('Talabat order', -85, 12),
-        ('Spinneys Groceries', -320, 4), ('DEWA Bill', -380, 6),
+        ('Spinneys Groceries', int(-320 * expense_scale), 4), ('DEWA Bill', int(-380 * expense_scale), 6),
         ('Netflix subscription', -49, 6), ('Spotify', -19, 6),
-        ('Etisalat Bill', -299, 6), ('Gym membership', -250, 6),
+        ('Etisalat Bill', int(-299 * expense_scale), 6), ('Gym membership', -250, 6),
         ('Uber ride', -55, 6), ('Amazon purchase', -180, 4),
         ('Noon shopping', -220, 3), ('Zara clothing', -450, 2),
         ('VOX Cinema', -120, 3), ('Costa Coffee', -45, 15),
-        ('IKEA furniture', -890, 1), ('Pharmacy', -95, 4),
-        ('Dentist', -400, 2), ('Petrol', -180, 8),
+        ('IKEA furniture', int(-890 * expense_scale), 1), ('Pharmacy', -95, 4),
+        ('Dentist', -400, 2), ('Petrol', int(-180 * expense_scale), 8),
         ('Parking fee', -25, 10), ('Restaurant dinner', -280, 8),
-        ('School fees', -2200, 3), ('Rent payment', -4500, 6),
-        ('Luxury watch purchase', -8500, 1),
-        ('Emergency car repair', -3200, 1),
+        ('School fees', int(-2200 * expense_scale), 3), ('Rent payment', int(-4500 * expense_scale), 6),
+        ('Luxury watch purchase', int(-8500 * expense_scale), 1),
+        ('Emergency car repair', int(-3200 * expense_scale), 1),
         ('Adobe Creative Cloud', -240, 6),
     ]
     
@@ -492,6 +498,12 @@ if 'goals' not in st.session_state:
 
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
+
+if 'last_processed_message' not in st.session_state:
+    st.session_state.last_processed_message = None
+
+if 'ai_processing' not in st.session_state:
+    st.session_state.ai_processing = False
 
 # ============================================================================
 # SIDEBAR CONFIGURATION
@@ -1037,24 +1049,32 @@ if st.session_state.df is not None:
             
             # Input & Process
             st.divider()
-            user_input = st.text_input("Ask FinCoach anything about your finances...", label_visibility="collapsed")
+            user_input = st.text_input("Ask FinCoach anything about your finances...", label_visibility="collapsed", key="ai_coach_input")
             
-            if user_input:
-                # Add user message
+            # Only process new messages (prevent loop)
+            if user_input and user_input != st.session_state.last_processed_message and not st.session_state.ai_processing:
+                st.session_state.last_processed_message = user_input
+                st.session_state.ai_processing = True
+                
+                # Add user message to history
                 st.session_state.chat_history.append({"role": "user", "content": user_input})
                 
-                # Get AI response
-                system_msg = f"""You are FinCoach, a friendly expert personal finance coach with 20 years of experience.
-You have the user's financial data: {financial_summary}
-Current Savings Rate: {savings_rate:.1f}%
+                # Get AI response with loading indicator
+                with st.spinner("🤖 FinCoach is thinking..."):
+                    system_msg = f"""You are FinCoach, a friendly expert personal finance coach.
+User: {st.session_state.user_name}
+Financial Summary: {financial_summary}
+Savings Rate: {savings_rate:.1f}%
 Subscriptions: {subscription_count}
 
-Give specific, actionable, empathetic advice. Use bullet points. Keep under 300 words.
-Always end with: "💡 Educational guidance, not regulated advice."
+Give specific, actionable advice. Use bullet points. Keep under 250 words.
+End with: "💡 Educational guidance, not regulated advice."
 Be warm and encouraging."""
+                    
+                    ai_response = call_azure_ai(user_input, system_msg)
+                    st.session_state.chat_history.append({"role": "assistant", "content": ai_response})
                 
-                ai_response = call_azure_ai(user_input, system_msg)
-                st.session_state.chat_history.append({"role": "assistant", "content": ai_response})
+                st.session_state.ai_processing = False
                 st.rerun()
             
             # Clear chat button
