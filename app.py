@@ -695,6 +695,10 @@ if st.session_state.df is not None:
                     delta_color=savings_color
                 )
             
+            # Get date range for aggregation info
+            date_range = f"({df['date'].min().strftime('%b %d, %Y')} → {df['date'].max().strftime('%b %d, %Y')})"
+            st.caption(f"📊 6-Month Aggregated Summary {date_range}")
+            
             st.divider()
             
             # Charts Row
