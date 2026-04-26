@@ -503,6 +503,9 @@ if 'last_processed_message' not in st.session_state:
 if 'ai_processing' not in st.session_state:
     st.session_state.ai_processing = False
 
+if 'selected_suggestion' not in st.session_state:
+    st.session_state.selected_suggestion = ""
+
 # ============================================================================
 # SIDEBAR CONFIGURATION
 # ============================================================================
@@ -1024,8 +1027,8 @@ if st.session_state.df is not None:
             cols = st.columns(len(suggestions))
             for idx, suggestion in enumerate(suggestions):
                 if cols[idx].button(suggestion, key=f"q_{idx}", use_container_width=True):
-                    if suggestion not in st.session_state.chat_history:
-                        st.session_state.chat_history.append({"role": "user", "content": suggestion})
+                    st.session_state.selected_suggestion = suggestion
+                    st.rerun()
             
             st.divider()
             
@@ -1051,7 +1054,17 @@ if st.session_state.df is not None:
             
             # Input & Process
             st.divider()
-            user_input = st.text_input("Ask FinCoach anything about your finances...", label_visibility="collapsed", key="ai_coach_input")
+            
+            # Pre-fill input if a suggestion was selected
+            if st.session_state.selected_suggestion and st.session_state.selected_suggestion != st.session_state.last_processed_message:
+                st.session_state["ai_coach_input"] = st.session_state.selected_suggestion
+            
+            user_input = st.text_input(
+                "Ask FinCoach anything about your finances...", 
+                label_visibility="collapsed", 
+                key="ai_coach_input",
+                placeholder="Ask FinCoach anything about your finances..."
+            )
             
             # Only process new messages (prevent loop)
             if user_input and user_input != st.session_state.last_processed_message and not st.session_state.ai_processing:
@@ -1060,6 +1073,10 @@ if st.session_state.df is not None:
                 
                 # Add user message to history
                 st.session_state.chat_history.append({"role": "user", "content": user_input})
+                
+                # Clear the input field and selected suggestion
+                st.session_state.selected_suggestion = ""
+                st.session_state["ai_coach_input"] = ""
                 
                 # Get AI response with loading indicator
                 with st.spinner("🤖 FinCoach is thinking..."):
