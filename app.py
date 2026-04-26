@@ -1055,14 +1055,14 @@ if st.session_state.df is not None:
             # Input & Process
             st.divider()
             
-            # Pre-fill input if a suggestion was selected
-            if st.session_state.selected_suggestion and st.session_state.selected_suggestion != st.session_state.last_processed_message:
-                st.session_state["ai_coach_input"] = st.session_state.selected_suggestion
+            # Get the current suggestion value (set before widget render)
+            input_value = st.session_state.selected_suggestion
             
             user_input = st.text_input(
                 "Ask FinCoach anything about your finances...", 
                 label_visibility="collapsed", 
                 key="ai_coach_input",
+                value=input_value,
                 placeholder="Ask FinCoach anything about your finances..."
             )
             
@@ -1074,9 +1074,8 @@ if st.session_state.df is not None:
                 # Add user message to history
                 st.session_state.chat_history.append({"role": "user", "content": user_input})
                 
-                # Clear the input field and selected suggestion
+                # Clear the selected suggestion for next run
                 st.session_state.selected_suggestion = ""
-                st.session_state["ai_coach_input"] = ""
                 
                 # Get AI response with loading indicator
                 with st.spinner("🤖 FinCoach is thinking..."):
