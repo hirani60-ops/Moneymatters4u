@@ -410,20 +410,18 @@ def generate_demo_data() -> pd.DataFrame:
     
     # Regular expenses - scaled to user's income level
     expense_templates = [
-        ('Careem ride', int(-45 * expense_scale), 8), ('Talabat order', int(-85 * expense_scale), 12),
-        ('Spinneys Groceries', int(-320 * expense_scale), 4), ('DEWA Bill', int(-380 * expense_scale), 6),
-        ('Netflix subscription', -49, 6), ('Spotify', -19, 6),
-        ('Etisalat Bill', int(-299 * expense_scale), 6), ('Gym membership', int(-250 * expense_scale), 6),
-        ('Uber ride', int(-55 * expense_scale), 6), ('Amazon purchase', int(-180 * expense_scale), 4),
-        ('Noon shopping', int(-220 * expense_scale), 3), ('Zara clothing', int(-450 * expense_scale), 2),
-        ('VOX Cinema', int(-120 * expense_scale), 3), ('Costa Coffee', -45, 15),
-        ('IKEA furniture', int(-890 * expense_scale), 1), ('Pharmacy', int(-95 * expense_scale), 4),
-        ('Dentist', int(-400 * expense_scale), 2), ('Petrol', int(-180 * expense_scale), 8),
-        ('Parking fee', -25, 10), ('Restaurant dinner', int(-280 * expense_scale), 8),
-        ('School fees', int(-2200 * expense_scale), 3), ('Rent payment', int(-4500 * expense_scale), 6),
-        ('Luxury watch purchase', int(-8500 * expense_scale), 1),
-        ('Emergency car repair', int(-3200 * expense_scale), 1),
-        ('Adobe Creative Cloud', -240, 6),
+        ('Careem ride', int(-45 * expense_scale), 4), ('Talabat order', int(-75 * expense_scale), 8),
+        ('Spinneys Groceries', int(-280 * expense_scale), 4), ('DEWA Bill', int(-320 * expense_scale), 6),
+        ('Netflix subscription', -35, 6), ('Spotify', -15, 6),
+        ('Etisalat Bill', int(-250 * expense_scale), 6), ('Gym membership', int(-180 * expense_scale), 6),
+        ('Uber ride', int(-40 * expense_scale), 4), ('Amazon purchase', int(-120 * expense_scale), 3),
+        ('Noon shopping', int(-150 * expense_scale), 2), ('Zara clothing', int(-250 * expense_scale), 1),
+        ('VOX Cinema', int(-80 * expense_scale), 2), ('Costa Coffee', -35, 12),
+        ('IKEA furniture', int(-500 * expense_scale), 1), ('Pharmacy', int(-75 * expense_scale), 3),
+        ('Dentist', int(-300 * expense_scale), 1), ('Petrol', int(-150 * expense_scale), 6),
+        ('Parking fee', -20, 6), ('Restaurant dinner', int(-200 * expense_scale), 6),
+        ('School fees', int(-1500 * expense_scale), 2), ('Rent payment', int(-3000 * expense_scale), 6),
+        ('Adobe Creative Cloud', -200, 6),
     ]
     
     for desc, amount, count in expense_templates:
