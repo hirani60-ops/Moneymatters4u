@@ -6,8 +6,17 @@ textColor = "#FFFFFF"
 font = "sans serif"
 
 [server]
-maxUploadSize = 10
+maxUploadSize = 50
 enableXsrfProtection = true
+runOnSave = false
+
+[client]
+toolbarMode = "minimal"
+showErrorDetails = true
 
 [browser]
 gatherUsageStats = false
+serverAddress = "0.0.0.0"
+
+[logger]
+level = "info"

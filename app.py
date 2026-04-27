@@ -263,6 +263,120 @@ CUSTOM_CSS = """
     ::-webkit-scrollbar-thumb:hover {
         background: var(--text-muted);
     }
+
+    /* Mobile Responsive Design */
+    @media (max-width: 768px) {
+        .gradient-header {
+            padding: 1.5rem 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .gradient-header h1 {
+            font-size: 1.5rem !important;
+        }
+
+        .stMetric {
+            min-width: auto !important;
+        }
+
+        [data-testid="stMetricContainer"] {
+            width: 100%;
+        }
+
+        .stTabs [role="tablist"] {
+            flex-wrap: wrap;
+            gap: 0.25rem;
+        }
+
+        .stTabs [role="tab"] {
+            padding: 0.5rem 1rem !important;
+            font-size: 0.85rem !important;
+            min-width: 80px !important;
+        }
+
+        .card {
+            padding: 1rem !important;
+            margin-bottom: 0.75rem !important;
+        }
+
+        .card-header {
+            font-size: 1rem !important;
+            margin-bottom: 0.75rem !important;
+        }
+
+        [data-testid="stSidebar"] {
+            width: 100vw !important;
+            padding: 1rem 0.75rem !important;
+        }
+
+        .stButton > button {
+            width: 100% !important;
+            padding: 0.75rem 0.5rem !important;
+            font-size: 0.9rem !important;
+        }
+
+        .stTextInput input,
+        .stNumberInput input {
+            width: 100% !important;
+            padding: 0.6rem !important;
+            font-size: 1rem !important;
+        }
+
+        [data-testid="column"] {
+            flex: 1 !important;
+        }
+
+        .stExpander {
+            margin-bottom: 0.5rem !important;
+        }
+
+        /* Mobile-friendly chat */
+        .chat-bubble-user {
+            max-width: 90% !important;
+        }
+
+        .chat-bubble-ai {
+            max-width: 90% !important;
+        }
+
+        /* Mobile table scrolling */
+        .stDataFrame {
+            font-size: 0.8rem !important;
+        }
+
+        /* Prevent layout shift on mobile */
+        [data-testid="stPlotlyContainer"] {
+            height: auto !important;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .gradient-header h1 {
+            font-size: 1.25rem !important;
+        }
+
+        .stTabs [role="tab"] {
+            padding: 0.4rem 0.8rem !important;
+            font-size: 0.75rem !important;
+        }
+
+        .stMetric {
+            padding: 0.75rem !important;
+        }
+
+        .card {
+            padding: 0.75rem !important;
+        }
+
+        [data-testid="stSidebar"] {
+            padding: 0.5rem !important;
+        }
+
+        .stButton > button {
+            padding: 0.5rem !important;
+            font-size: 0.85rem !important;
+        }
+    }
 </style>
 """
 
@@ -465,6 +579,52 @@ def validate_csv(df: pd.DataFrame) -> tuple:
     return False, "Could not detect required columns. Ensure your CSV has Date, Description, and Amount columns."
 
 
+def parse_pdf(uploaded_pdf) -> tuple:
+    """Extract transaction data from PDF bank statements."""
+    try:
+        import pdfplumber
+        transactions = []
+        
+        with pdfplumber.open(uploaded_pdf) as pdf:
+            if len(pdf.pages) == 0:
+                return None, "PDF file is empty."
+            
+            # Try to extract tables from all pages
+            for page_num, page in enumerate(pdf.pages):
+                tables = page.extract_tables()
+                if tables:
+                    for table in tables:
+                        for row in table:
+                            if row and len(row) >= 3:
+                                try:
+                                    # Assume format: [Date, Description, Amount] or similar
+                                    transactions.append({
+                                        'date': str(row[0]).strip(),
+                                        'description': str(row[1]).strip(),
+                                        'amount': float(str(row[2]).strip().replace(',', ''))
+                                    })
+                                except (ValueError, IndexError):
+                                    continue
+            
+            if not transactions:
+                return None, "No transaction data found in PDF. Please ensure your PDF contains a table with Date, Description, and Amount columns."
+            
+            df = pd.DataFrame(transactions)
+            df.columns = ['date', 'description', 'amount']
+            df['date'] = pd.to_datetime(df['date'], errors='coerce')
+            df = df.dropna(subset=['date'])
+            
+            if df.empty:
+                return None, "Could not parse dates from PDF. Ensure dates are in standard format (e.g., DD/MM/YYYY)."
+            
+            return df, "Valid"
+    
+    except ImportError:
+        return None, "PDF parsing library not available. Please ensure pdfplumber is installed."
+    except Exception as e:
+        return None, f"Error parsing PDF: {str(e)}"
+
+
 def check_secrets():
     """Verify all required secrets are configured."""
     required = ["AZURE_API_KEY", "AZURE_API_ENDPOINT"]
@@ -546,20 +706,38 @@ with st.sidebar:
     
     # Data Upload Section
     st.markdown("### 📁 Upload Bank Statement")
-    uploaded_file = st.file_uploader("Upload CSV", type=['csv'], label_visibility="collapsed")
+    col1, col2 = st.columns(2)
     
-    if uploaded_file:
-        try:
-            df_upload = pd.read_csv(uploaded_file)
-            is_valid, message = validate_csv(df_upload)
-            if is_valid:
-                st.session_state.df = df_upload
-                st.session_state.demo_mode = False
-                st.success("✅ File uploaded successfully!")
-            else:
-                st.error(f"❌ {message}")
-        except Exception as e:
-            st.error(f"❌ Error reading file: {str(e)}")
+    with col1:
+        uploaded_csv = st.file_uploader("Upload CSV", type=['csv'], label_visibility="collapsed", key="csv_upload")
+        if uploaded_csv:
+            try:
+                df_upload = pd.read_csv(uploaded_csv)
+                is_valid, message = validate_csv(df_upload)
+                if is_valid:
+                    st.session_state.df = df_upload
+                    st.session_state.demo_mode = False
+                    st.success("✅ CSV uploaded successfully!")
+                else:
+                    st.error(f"❌ {message}")
+            except Exception as e:
+                st.error(f"❌ Error reading CSV: {str(e)}")
+    
+    with col2:
+        uploaded_pdf = st.file_uploader("Upload PDF", type=['pdf'], label_visibility="collapsed", key="pdf_upload")
+        if uploaded_pdf:
+            try:
+                df_upload, message = parse_pdf(uploaded_pdf)
+                if df_upload is not None:
+                    st.session_state.df = df_upload
+                    st.session_state.demo_mode = False
+                    st.success("✅ PDF uploaded successfully!")
+                else:
+                    st.error(f"❌ {message}")
+            except Exception as e:
+                st.error(f"❌ Error reading PDF: {str(e)}")
+    
+    st.divider()
     
     if st.button("🎮 Load Demo Data", use_container_width=True):
         st.session_state.df = generate_demo_data()
