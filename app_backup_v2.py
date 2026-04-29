@@ -22,11 +22,11 @@ st.set_page_config(
 )
 
 # ============================================================================
-# SIMPLIFIED LIGHTWEIGHT THEME (Inspired by YNAB, Mint, Personal Capital)
+# SIMPLIFIED LIGHTWEIGHT THEME
 # ============================================================================
 
 CUSTOM_CSS = """
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
     * { font-family: 'Inter', sans-serif; }
     body { background-color: #0F1117; color: #FFFFFF; }
@@ -34,9 +34,9 @@ CUSTOM_CSS = """
     .gradient-header {
         background: linear-gradient(135deg, #1B4FBB 0%, #00C6A2 100%);
         color: white;
-        padding: 2rem;
+        padding: 1.5rem;
         border-radius: 12px;
-        margin-bottom: 1.5rem;
+        margin-bottom: 1rem;
         text-align: center;
     }
     
@@ -48,50 +48,29 @@ CUSTOM_CSS = """
         margin-bottom: 0.75rem;
     }
     
-    .metric-box {
+    .signup-form {
         background-color: #1A1D27;
-        padding: 1.5rem;
-        border-radius: 12px;
-        text-align: center;
-        border-left: 4px solid #00C6A2;
-        transition: transform 0.2s;
-    }
-    
-    .metric-box:hover {
-        transform: translateY(-2px);
-    }
-    
-    .modal-signup {
-        background-color: #1A1D27;
-        padding: 2.5rem;
+        padding: 2rem;
         border-radius: 12px;
         border: 1px solid rgba(0, 198, 162, 0.3);
-        max-width: 450px;
+        max-width: 400px;
         margin: 2rem auto;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     }
     
-    .chat-bubble {
-        background-color: #1B4FBB;
-        color: white;
+    .metric-box {
+        background-color: #1A1D27;
         padding: 1rem;
         border-radius: 10px;
-        margin-bottom: 0.75rem;
-        max-width: 85%;
-    }
-    
-    .chat-bubble-ai {
-        background-color: #00C6A2;
-        color: #0F1117;
-        margin-left: auto;
+        text-align: center;
+        border: 1px solid rgba(255,255,255,0.08);
     }
     
     /* Mobile Responsive */
     @media (max-width: 768px) {
         .gradient-header { padding: 1rem; }
         .card { padding: 0.75rem; }
-        .modal-signup { padding: 1.5rem; max-width: 100%; }
-        .metric-box { padding: 1rem; }
+        .signup-form { padding: 1.5rem; max-width: 100%; }
+        .stMetric { padding: 0.5rem; }
     }
 </style>
 """
@@ -166,13 +145,13 @@ def validate_contact(contact):
 
 CATEGORY_KEYWORDS = {
     "🍽️ Food": ["restaurant", "cafe", "talabat", "deliveroo", "food", "dining"],
-    "🛒 Shopping": ["amazon", "noon", "mall", "zara", "shopping", "store"],
-    "🚗 Transport": ["uber", "careem", "taxi", "petrol", "parking", "transport"],
-    "🏠 Housing": ["rent", "mortgage", "property", "maintenance", "utilities"],
-    "⚡ Utilities": ["dewa", "etisalat", "electric", "water", "internet", "phone"],
-    "🎬 Entertainment": ["netflix", "spotify", "cinema", "gaming", "entertainment"],
-    "🏥 Healthcare": ["pharmacy", "hospital", "clinic", "medical", "health"],
-    "💰 Income": ["salary", "credit", "payment received", "bonus", "income"],
+    "🛒 Shopping": ["amazon", "noon", "mall", "zara", "shopping"],
+    "🚗 Transport": ["uber", "careem", "taxi", "petrol", "parking"],
+    "🏠 Housing": ["rent", "mortgage", "property", "maintenance"],
+    "⚡ Utilities": ["dewa", "etisalat", "electric", "water", "internet"],
+    "🎬 Entertainment": ["netflix", "spotify", "cinema", "gaming"],
+    "🏥 Healthcare": ["pharmacy", "hospital", "clinic", "medical"],
+    "💰 Income": ["salary", "credit", "payment received", "bonus"],
 }
 
 def categorize_transaction(description):
@@ -239,13 +218,9 @@ def parse_csv(uploaded_file):
         if 'amount' not in df.columns:
             return None, "❌ Missing Amount column"
         
-        date_col = [col for col in df.columns if 'date' in col][0]
-        desc_col = [col for col in df.columns if 'description' in col][0]
-        
-        df['Date'] = pd.to_datetime(df[date_col], errors='coerce')
+        df['Date'] = pd.to_datetime(df[[col for col in df.columns if 'date' in col][0]], errors='coerce')
         df = df.dropna(subset=['Date'])
-        df['Description'] = df[desc_col]
-        df['Category'] = df['Description'].apply(categorize_transaction)
+        df['Category'] = df[[col for col in df.columns if 'description' in col][0]].apply(categorize_transaction)
         
         return df[['Date', 'Description', 'Amount', 'Category']], "✅ CSV loaded"
     except Exception as e:
@@ -291,13 +266,13 @@ def call_azure_ai(prompt, user_name, financial_summary):
         api_key = st.secrets.get("AZURE_API_KEY", "")
         
         if not endpoint or not api_key:
-            return "💡 Demo response: Based on your spending, I recommend: 1) Reduce discretionary spending by 15%, 2) Set up automatic savings, 3) Review subscription services. Your savings potential: 20-25% of income."
+            return "💡 Demo response: Focus on reducing housing and transportation costs. Set a 20% savings goal."
         
         headers = {"Content-Type": "application/json", "api-key": api_key}
         payload = {
             "model": "Phi-4",
             "messages": [
-                {"role": "system", "content": f"You are FinCoach, a financial advisor. User: {user_name}. {financial_summary}. Provide actionable advice."},
+                {"role": "system", "content": f"You are FinCoach, a financial advisor. User: {user_name}. {financial_summary}"},
                 {"role": "user", "content": prompt}
             ],
             "max_tokens": 500,
@@ -307,7 +282,7 @@ def call_azure_ai(prompt, user_name, financial_summary):
         response = requests.post(endpoint, headers=headers, json=payload, timeout=15)
         return response.json()["choices"][0]["message"]["content"]
     except:
-        return "💡 Demo response: Unable to connect to AI. Try upgrading your internet connection."
+        return "💡 Unable to connect to AI. Try demo mode or check your internet."
 
 # ============================================================================
 # SESSION STATE INITIALIZATION
@@ -317,6 +292,8 @@ if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 if 'user_email' not in st.session_state:
     st.session_state.user_email = None
+if 'mode' not in st.session_state:
+    st.session_state.mode = 'auth'  # auth, demo, data
 if 'df' not in st.session_state:
     st.session_state.df = None
 if 'user_name' not in st.session_state:
@@ -330,7 +307,7 @@ if 'chat_history' not in st.session_state:
 init_database()
 
 # ============================================================================
-# SIGNUP MODAL (SEPARATE WINDOW)
+# AUTH PAGE
 # ============================================================================
 
 if not st.session_state.authenticated:
@@ -340,71 +317,81 @@ if not st.session_state.authenticated:
         st.markdown("""
         <div class="gradient-header">
             <h1>💰 FinCoach AI</h1>
-            <p style="font-size: 1.1rem; margin-top: 0.5rem;">Smart Personal Finance Made Simple</p>
+            <p>Smart Personal Finance Coach</p>
         </div>
         """, unsafe_allow_html=True)
         
-        # Signup Tab
-        st.markdown(f"""
-        <div class="modal-signup">
-            <h2>✨ Create Your Account</h2>
-            <p style="color: #00C6A2; margin-bottom: 1rem;">Free tier: {min(get_user_count(), 100)}/100 users • No credit card required</p>
-        </div>
-        """, unsafe_allow_html=True)
+        tab1, tab2 = st.tabs(["🔐 Sign Up", "📱 Demo"])
         
-        email = st.text_input("📧 Email Address", placeholder="you@example.com", key="signup_email")
-        contact = st.text_input("📱 Contact Number", placeholder="+971 50 123 4567", key="signup_contact")
-        
-        if st.button("✅ Create Account", use_container_width=True, key="signup_btn"):
-            if not email:
-                st.error("❌ Please enter email")
-            elif not validate_email(email):
-                st.error("❌ Invalid email format")
-            elif not contact:
-                st.error("❌ Please enter contact number")
-            elif not validate_contact(contact):
-                st.error("❌ Invalid contact (10-15 digits)")
-            else:
-                success, message = register_user(email, contact)
-                if success:
-                    st.session_state.authenticated = True
-                    st.session_state.user_email = email
-                    st.success(message)
-                    st.rerun()
+        with tab1:
+            st.markdown(f"""
+            <div class="card">
+                <h3>Create Account</h3>
+                <p>Free tier: {min(get_user_count(), 100)}/100 users registered</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            email = st.text_input("📧 Email Address", placeholder="your@email.com")
+            contact = st.text_input("📱 Contact Number", placeholder="+971501234567")
+            
+            if st.button("✅ Sign Up", use_container_width=True):
+                if not email:
+                    st.error("❌ Please enter email")
+                elif not validate_email(email):
+                    st.error("❌ Invalid email format")
+                elif not contact:
+                    st.error("❌ Please enter contact number")
+                elif not validate_contact(contact):
+                    st.error("❌ Invalid contact (10-15 digits)")
                 else:
-                    st.error(message)
+                    success, message = register_user(email, contact)
+                    if success:
+                        st.session_state.authenticated = True
+                        st.session_state.user_email = email
+                        st.session_state.mode = 'data'
+                        st.success(message)
+                        st.rerun()
+                    else:
+                        st.error(message)
         
-        st.divider()
-        st.markdown("#### 🎮 Or Try Demo Account")
-        
-        demo_name = st.text_input("👤 Your Name", placeholder="John Doe", key="demo_name_modal")
-        demo_income = st.number_input("💰 Monthly Income", min_value=1000, value=6600, step=100, key="demo_income_modal")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("📊 Demo Data", use_container_width=True, key="demo_data_btn"):
-                if not demo_name:
-                    st.error("❌ Enter your name")
-                else:
-                    st.session_state.authenticated = True
-                    st.session_state.user_email = "demo@fincoach.app"
-                    st.session_state.user_name = demo_name
-                    st.session_state.monthly_income = demo_income
-                    st.session_state.df = generate_demo_data(demo_income)
-                    st.success(f"✅ Welcome, {demo_name}!")
-                    st.rerun()
-        
-        with col2:
-            if st.button("➕ Manual Entry", use_container_width=True, key="manual_entry_btn"):
-                if not demo_name:
-                    st.error("❌ Enter your name")
-                else:
-                    st.session_state.authenticated = True
-                    st.session_state.user_email = "demo@fincoach.app"
-                    st.session_state.user_name = demo_name
-                    st.session_state.monthly_income = demo_income
-                    st.success(f"✅ Welcome, {demo_name}!")
-                    st.rerun()
+        with tab2:
+            st.markdown("""
+            <div class="card">
+                <h3>Try Demo Account</h3>
+                <p>Use demo data or enter your info manually</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            demo_name = st.text_input("👤 Your Name", placeholder="John Doe", key="demo_name")
+            demo_income = st.number_input("💰 Monthly Income", min_value=1000, value=6600, step=100)
+            currency = st.selectbox("💵 Currency", ["AED", "USD", "EUR", "GBP"])
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("📊 Load Demo Data", use_container_width=True):
+                    if not demo_name:
+                        st.error("❌ Enter your name")
+                    else:
+                        st.session_state.authenticated = True
+                        st.session_state.user_email = "demo@fincoach.app"
+                        st.session_state.user_name = demo_name
+                        st.session_state.monthly_income = demo_income
+                        st.session_state.df = generate_demo_data(demo_income)
+                        st.session_state.mode = 'data'
+                        st.success(f"✅ Welcome, {demo_name}!")
+                        st.rerun()
+            
+            with col2:
+                if st.button("➕ Enter Manual Data", use_container_width=True):
+                    if not demo_name:
+                        st.error("❌ Enter your name")
+                    else:
+                        st.session_state.authenticated = True
+                        st.session_state.user_email = "demo@fincoach.app"
+                        st.session_state.user_name = demo_name
+                        st.session_state.monthly_income = demo_income
+                        st.session_state.mode = 'data'
+                        st.rerun()
 
 # ============================================================================
 # MAIN APP
@@ -418,10 +405,10 @@ else:
         st.divider()
         
         st.markdown("### ⚙️ Settings")
-        user_name = st.text_input("Name", value=st.session_state.user_name, key="sidebar_name")
-        monthly_income = st.number_input("Monthly Income", value=st.session_state.monthly_income, min_value=0, key="sidebar_income")
+        user_name = st.text_input("Name", value=st.session_state.user_name)
+        monthly_income = st.number_input("Monthly Income", value=st.session_state.monthly_income, min_value=0)
         
-        if st.button("🔄 Update Profile", use_container_width=True):
+        if st.button("🔄 Update Profile"):
             st.session_state.user_name = user_name
             st.session_state.monthly_income = monthly_income
             st.success("✅ Profile updated")
@@ -437,20 +424,17 @@ else:
     # Main content
     st.markdown(f"""
     <div class="gradient-header">
-        <h1>Welcome back, {st.session_state.user_name}! 👋</h1>
-        <p>{datetime.now().strftime('%A, %B %d, %Y')}</p>
+        <h1>Welcome, {st.session_state.user_name}! 👋</h1>
     </div>
     """, unsafe_allow_html=True)
     
     # Data section
     if st.session_state.df is None:
-        st.info("📊 Upload your bank statement or add expenses manually to get started")
+        st.info("📊 Upload data to get started")
         
-        col1, col2, col3 = st.columns(3)
-        
+        col1, col2 = st.columns(2)
         with col1:
-            st.markdown("#### 📄 Upload CSV")
-            uploaded_csv = st.file_uploader("Choose CSV file", type=['csv'], key="csv_upload")
+            uploaded_csv = st.file_uploader("📄 Upload CSV", type=['csv'])
             if uploaded_csv:
                 df, msg = parse_csv(uploaded_csv)
                 if df is not None:
@@ -461,8 +445,7 @@ else:
                     st.error(msg)
         
         with col2:
-            st.markdown("#### 📄 Upload PDF")
-            uploaded_pdf = st.file_uploader("Choose PDF file", type=['pdf'], key="pdf_upload")
+            uploaded_pdf = st.file_uploader("📄 Upload PDF", type=['pdf'])
             if uploaded_pdf:
                 df, msg = parse_pdf(uploaded_pdf)
                 if df is not None:
@@ -472,18 +455,16 @@ else:
                 else:
                     st.error(msg)
         
-        with col3:
-            st.markdown("#### 🎮 Demo Data")
-            if st.button("Load Sample Data", use_container_width=True, key="load_demo"):
-                st.session_state.df = generate_demo_data(st.session_state.monthly_income)
-                st.success("✅ Demo data loaded")
-                st.rerun()
+        if st.button("🎮 Load Demo Data", use_container_width=True):
+            st.session_state.df = generate_demo_data(st.session_state.monthly_income)
+            st.success("✅ Demo data loaded")
+            st.rerun()
     
     else:
         # Tabs
         df = st.session_state.df.copy()
         
-        tab1, tab2, tab3, tab4 = st.tabs(["📊 Dashboard", "💬 AI Coach", "➕ Add Expense", "📁 Data"])
+        tab1, tab2, tab3, tab4 = st.tabs(["📊 Dashboard", "💬 AI Coach", "📁 Data", "❓ Help"])
         
         # TAB 1: Dashboard
         with tab1:
@@ -494,13 +475,13 @@ else:
             
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.markdown(f"""<div class="metric-box"><h4>💰 Income</h4><p style="font-size:24px; color: #00C6A2;">{total_income:,.0f}</p></div>""", unsafe_allow_html=True)
+                st.markdown(f"""<div class="metric-box"><h4>💰 Income</h4><p style="font-size:24px">{total_income:,.0f}</p></div>""", unsafe_allow_html=True)
             with col2:
-                st.markdown(f"""<div class="metric-box"><h4>💸 Expenses</h4><p style="font-size:24px; color: #E03E3E;">{total_expenses:,.0f}</p></div>""", unsafe_allow_html=True)
+                st.markdown(f"""<div class="metric-box"><h4>💸 Expenses</h4><p style="font-size:24px">{total_expenses:,.0f}</p></div>""", unsafe_allow_html=True)
             with col3:
-                st.markdown(f"""<div class="metric-box"><h4>🎯 Savings</h4><p style="font-size:24px; color: #27AE60;">{net_savings:,.0f}</p></div>""", unsafe_allow_html=True)
+                st.markdown(f"""<div class="metric-box"><h4>🎯 Savings</h4><p style="font-size:24px">{net_savings:,.0f}</p></div>""", unsafe_allow_html=True)
             with col4:
-                st.markdown(f"""<div class="metric-box"><h4>📈 Rate</h4><p style="font-size:24px; color: #1B4FBB;">{savings_rate:.1f}%</p></div>""", unsafe_allow_html=True)
+                st.markdown(f"""<div class="metric-box"><h4>📈 Rate</h4><p style="font-size:24px">{savings_rate:.1f}%</p></div>""", unsafe_allow_html=True)
             
             st.divider()
             
@@ -525,11 +506,10 @@ else:
             
             total_income = df[df['Description'].str.lower().str.contains('salary|credit|income', na=False)]['Amount'].sum()
             total_expenses = abs(df[df['Amount'] < 0]['Amount'].sum())
-            top_category = df[df['Amount'] < 0].groupby('Category')['Amount'].sum().abs().idxmax() if len(df[df['Amount'] < 0]) > 0 else "None"
+            top_category = df[df['Amount'] < 0].groupby('Category')['Amount'].sum().abs().idxmax()
             
-            financial_summary = f"Total Income: {total_income:,.0f}, Total Expenses: {total_expenses:,.0f}, Top Spending: {top_category}"
+            financial_summary = f"Total Income: {total_income:,.0f}, Total Expenses: {total_expenses:,.0f}, Top Category: {top_category}"
             
-            st.markdown("**Quick Questions:**")
             suggestions = [
                 "How can I save more?",
                 "Where am I overspending?",
@@ -537,85 +517,70 @@ else:
                 "How to reduce expenses?"
             ]
             
+            st.write("**Quick Questions:**")
             cols = st.columns(2)
             for idx, suggestion in enumerate(suggestions):
                 with cols[idx % 2]:
-                    if st.button(suggestion, use_container_width=True, key=f"faq_{idx}"):
+                    if st.button(suggestion, use_container_width=True):
                         st.session_state.chat_history.append({"role": "user", "content": suggestion})
-                        with st.spinner("🤖 Getting AI response..."):
-                            response = call_azure_ai(suggestion, st.session_state.user_name, financial_summary)
-                            st.session_state.chat_history.append({"role": "assistant", "content": response})
-                        st.rerun()
             
             st.divider()
             
             # Chat display
-            if st.session_state.chat_history:
-                st.markdown("**Conversation:**")
-                for msg in st.session_state.chat_history:
-                    if msg["role"] == "user":
-                        st.markdown(f'<div class="chat-bubble">👤 You: {msg["content"]}</div>', unsafe_allow_html=True)
-                    else:
-                        st.markdown(f'<div class="chat-bubble chat-bubble-ai">🤖 Coach: {msg["content"]}</div>', unsafe_allow_html=True)
-            
-            st.divider()
+            for msg in st.session_state.chat_history:
+                if msg["role"] == "user":
+                    st.markdown(f"**You:** {msg['content']}")
+                else:
+                    st.markdown(f"**Coach:** {msg['content']}")
             
             # Input
-            user_input = st.text_input("💬 Ask your own question...", key="coach_input")
+            user_input = st.text_input("Ask a question...")
             if user_input:
                 st.session_state.chat_history.append({"role": "user", "content": user_input})
                 
-                with st.spinner("🤖 FinCoach is thinking..."):
+                with st.spinner("🤖 Thinking..."):
                     response = call_azure_ai(user_input, st.session_state.user_name, financial_summary)
                     st.session_state.chat_history.append({"role": "assistant", "content": response})
                 
                 st.rerun()
         
-        # TAB 3: Add Expense Manually
+        # TAB 3: Data
         with tab3:
-            st.markdown("### ➕ Add Expense Manually")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                expense_date = st.date_input("📅 Date", key="exp_date")
-                expense_desc = st.text_input("📝 Description", placeholder="e.g., Restaurant dinner", key="exp_desc")
-            
-            with col2:
-                expense_amount = st.number_input("💰 Amount", min_value=-10000, max_value=100000, value=0, key="exp_amount")
-                expense_category = st.selectbox("🏷️ Category", list(CATEGORY_KEYWORDS.keys()), key="exp_category")
-            
-            if st.button("✅ Add Transaction", use_container_width=True):
-                if not expense_desc:
-                    st.error("❌ Please enter a description")
-                elif expense_amount == 0:
-                    st.error("❌ Please enter an amount")
-                else:
-                    new_transaction = pd.DataFrame({
-                        'Date': [pd.to_datetime(expense_date)],
-                        'Description': [expense_desc],
-                        'Amount': [expense_amount],
-                        'Category': [expense_category]
-                    })
-                    st.session_state.df = pd.concat([st.session_state.df, new_transaction], ignore_index=True)
-                    st.session_state.df = st.session_state.df.sort_values('Date').reset_index(drop=True)
-                    st.success("✅ Transaction added successfully!")
-                    st.rerun()
-        
-        # TAB 4: Data
-        with tab4:
             st.markdown("### 📊 Your Transactions")
+            st.dataframe(df, use_container_width=True, height=400)
             
-            st.dataframe(st.session_state.df, use_container_width=True, height=400)
+            csv = df.to_csv(index=False).encode()
+            st.download_button("📥 Download CSV", csv, "transactions.csv", "text/csv")
             
-            csv = st.session_state.df.to_csv(index=False).encode()
-            st.download_button("📥 Download as CSV", csv, "fincoach_transactions.csv", "text/csv", use_container_width=True)
-            
-            if st.button("🗑️ Clear All Data", use_container_width=True):
+            if st.button("🗑️ Clear Data"):
                 st.session_state.df = None
-                st.session_state.chat_history = []
-                st.success("✅ Data cleared")
                 st.rerun()
+        
+        # TAB 4: Help
+        with tab4:
+            st.markdown("""
+            ### ❓ Frequently Asked Questions
+            
+            **How does FinCoach work?**
+            - Upload your bank statement or use demo data
+            - AI Coach analyzes your spending patterns
+            - Get personalized financial recommendations
+            
+            **What data do we collect?**
+            - Email and contact (for free tier tracking)
+            - Your transactions (stored locally)
+            - Anonymous usage stats
+            
+            **Is my data safe?**
+            - Data is encrypted and stored securely
+            - We never sell your information
+            - Delete anytime from settings
+            
+            **How is it free?**
+            - First 100 users get premium features free
+            - After 100, premium subscription available
+            - Demo mode always free
+            """)
 
 # ============================================================================
 # FOOTER
@@ -624,7 +589,7 @@ else:
 st.divider()
 st.markdown("""
 <div style="text-align: center; color: #9FA6B2; font-size: 0.85rem;">
-💰 FinCoach AI | 🔒 Secure & Private | ⚡ Free for First 100 Users<br>
-Design inspired by YNAB, Mint & Personal Capital | Questions? support@fincoach.app
+📊 FinCoach AI | 🔒 Secure | 💼 Personal Finance Made Simple<br>
+For support: support@fincoach.app
 </div>
 """, unsafe_allow_html=True)
