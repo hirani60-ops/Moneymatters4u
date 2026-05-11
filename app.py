@@ -300,7 +300,7 @@ def create_empty_6month_dataframe():
 def generate_monthly_expense_summary(months_count=6):
     """Generate a summary template for 6 months with common expense categories."""
     base_date = pd.Timestamp.now() - pd.DateOffset(months=months_count-1)
-    months = pd.date_range(start=base_date.replace(day=1), periods=months_count, freq='M')
+    months = pd.date_range(start=base_date.replace(day=1), periods=months_count, freq='ME')
     
     month_labels = [m.strftime('%B %Y') for m in months]
     
