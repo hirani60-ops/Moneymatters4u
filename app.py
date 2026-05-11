@@ -280,6 +280,46 @@ def parse_pdf(uploaded_file):
     except Exception as e:
         return None, f"❌ Error parsing PDF: {str(e)}"
 
+def create_empty_6month_dataframe():
+    """Create an empty 6-month expense template dataframe."""
+    base_date = pd.Timestamp.now() - pd.DateOffset(months=5)
+    months = pd.date_range(start=base_date, periods=6, freq='M')
+    
+    transactions = []
+    for month in months:
+        transactions.append({
+            'Date': month.replace(day=1),
+            'Description': 'Monthly Income',
+            'Amount': 0,
+            'Category': '💰 Income',
+            'Type': 'Income'
+        })
+    
+    return pd.DataFrame(transactions)
+
+def generate_monthly_expense_summary(months_count=6):
+    """Generate a summary template for 6 months with common expense categories."""
+    base_date = pd.Timestamp.now() - pd.DateOffset(months=months_count-1)
+    months = pd.date_range(start=base_date.replace(day=1), periods=months_count, freq='M')
+    
+    month_labels = [m.strftime('%B %Y') for m in months]
+    
+    default_categories = {
+        "🍽️ Food": 300,
+        "🛒 Shopping": 200,
+        "🚗 Transport": 150,
+        "🏠 Housing": 1500,
+        "⚡ Utilities": 300,
+        "🎬 Entertainment": 100,
+        "🏥 Healthcare": 100,
+    }
+    
+    return {
+        "months": month_labels,
+        "month_dates": months,
+        "categories": default_categories
+    }
+
 # ============================================================================
 # AI COACH FUNCTION
 # ============================================================================
@@ -325,6 +365,10 @@ if 'monthly_income' not in st.session_state:
     st.session_state.monthly_income = 0
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
+if 'manual_entry_mode' not in st.session_state:
+    st.session_state.manual_entry_mode = False
+if 'monthly_expenses' not in st.session_state:
+    st.session_state.monthly_expenses = None
 
 # Initialize database
 init_database()
@@ -380,31 +424,15 @@ if not st.session_state.authenticated:
         demo_name = st.text_input("👤 Your Name", placeholder="John Doe", key="demo_name_modal")
         demo_income = st.number_input("💰 Monthly Income", min_value=1000, value=6600, step=100, key="demo_income_modal")
         
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("📊 Demo Data", use_container_width=True, key="demo_data_btn"):
-                if not demo_name:
-                    st.error("❌ Enter your name")
-                else:
-                    st.session_state.authenticated = True
-                    st.session_state.user_email = "demo@fincoach.app"
-                    st.session_state.user_name = demo_name
-                    st.session_state.monthly_income = demo_income
-                    st.session_state.df = generate_demo_data(demo_income)
-                    st.success(f"✅ Welcome, {demo_name}!")
-                    st.rerun()
-        
-        with col2:
-            if st.button("➕ Manual Entry", use_container_width=True, key="manual_entry_btn"):
-                if not demo_name:
-                    st.error("❌ Enter your name")
-                else:
-                    st.session_state.authenticated = True
-                    st.session_state.user_email = "demo@fincoach.app"
-                    st.session_state.user_name = demo_name
-                    st.session_state.monthly_income = demo_income
-                    st.success(f"✅ Welcome, {demo_name}!")
-                    st.rerun()
+        if st.button("📊 Demo Data", use_container_width=True, key="demo_data_btn"):
+            name = demo_name if demo_name else "Demo User"
+            st.session_state.authenticated = True
+            st.session_state.user_email = "demo@fincoach.app"
+            st.session_state.user_name = name
+            st.session_state.monthly_income = demo_income
+            st.session_state.df = generate_demo_data(demo_income)
+            st.success(f"✅ Welcome, {name}!")
+            st.rerun()
 
 # ============================================================================
 # MAIN APP
@@ -444,40 +472,169 @@ else:
     
     # Data section
     if st.session_state.df is None:
-        st.info("📊 Upload your bank statement or add expenses manually to get started")
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.markdown("#### 📄 Upload CSV")
-            uploaded_csv = st.file_uploader("Choose CSV file", type=['csv'], key="csv_upload")
-            if uploaded_csv:
-                df, msg = parse_csv(uploaded_csv)
-                if df is not None:
-                    st.session_state.df = df
-                    st.success(msg)
+        if st.session_state.manual_entry_mode:
+            st.info("📝 Enter your expenses for the last 6 months to get started")
+            
+            with st.expander("📋 Quick Entry - Monthly Expense Summary", expanded=True):
+                st.markdown("### 💰 Income & Expenses by Month")
+                
+                template = generate_monthly_expense_summary(6)
+                months = template["months"]
+                month_dates = template["month_dates"]
+                default_categories = template["categories"]
+                
+                # Monthly income section
+                st.markdown("#### 📊 Monthly Income")
+                income_cols = st.columns(3)
+                monthly_incomes = {}
+                for idx, month in enumerate(months):
+                    with income_cols[idx % 3]:
+                        monthly_incomes[month] = st.number_input(
+                            f"{month}",
+                            value=int(st.session_state.monthly_income),
+                            min_value=0,
+                            step=100,
+                            key=f"income_{idx}"
+                        )
+                
+                st.divider()
+                
+                # Expense categories section
+                st.markdown("#### 💸 Expenses by Category")
+                expense_data = {}
+                
+                for category in default_categories.keys():
+                    st.markdown(f"**{category}**")
+                    cols = st.columns(3)
+                    
+                    for idx, month in enumerate(months):
+                        with cols[idx % 3]:
+                            if category not in expense_data:
+                                expense_data[category] = {}
+                            
+                            amount = st.number_input(
+                                f"{month}",
+                                value=-default_categories[category],
+                                min_value=-100000,
+                                max_value=0,
+                                step=-10,
+                                key=f"expense_{category}_{idx}"
+                            )
+                            expense_data[category][month] = amount
+                
+                st.divider()
+                
+                if st.button("✅ Create Expense Data from Summary", use_container_width=True):
+                    transactions = []
+                    
+                    # Add income transactions
+                    for idx, (month, income) in enumerate(monthly_incomes.items()):
+                        if income > 0:
+                            transactions.append({
+                                'Date': month_dates[idx],
+                                'Description': 'Monthly Income',
+                                'Amount': income,
+                                'Category': '💰 Income'
+                            })
+                    
+                    # Add expense transactions
+                    for category, months_data in expense_data.items():
+                        for idx, (month, amount) in enumerate(months_data.items()):
+                            if amount != 0:
+                                transactions.append({
+                                    'Date': month_dates[idx],
+                                    'Description': category.split()[1] if len(category.split()) > 1 else category,
+                                    'Amount': amount,
+                                    'Category': category
+                                })
+                    
+                    df_manual = pd.DataFrame(transactions)
+                    df_manual['Date'] = pd.to_datetime(df_manual['Date'])
+                    st.session_state.df = df_manual.sort_values('Date').reset_index(drop=True)
+                    st.session_state.manual_entry_mode = False
+                    st.success("✅ Expense data created successfully!")
                     st.rerun()
-                else:
-                    st.error(msg)
-        
-        with col2:
-            st.markdown("#### 📄 Upload PDF")
-            uploaded_pdf = st.file_uploader("Choose PDF file", type=['pdf'], key="pdf_upload")
-            if uploaded_pdf:
-                df, msg = parse_pdf(uploaded_pdf)
-                if df is not None:
-                    st.session_state.df = df
-                    st.success(msg)
+            
+            st.divider()
+            st.markdown("### 📄 Or Use Other Methods")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.markdown("#### 📄 Upload CSV")
+                uploaded_csv = st.file_uploader("Choose CSV file", type=['csv'], key="csv_upload")
+                if uploaded_csv:
+                    df, msg = parse_csv(uploaded_csv)
+                    if df is not None:
+                        st.session_state.df = df
+                        st.session_state.manual_entry_mode = False
+                        st.success(msg)
+                        st.rerun()
+                    else:
+                        st.error(msg)
+            
+            with col2:
+                st.markdown("#### 📄 Upload PDF")
+                uploaded_pdf = st.file_uploader("Choose PDF file", type=['pdf'], key="pdf_upload")
+                if uploaded_pdf:
+                    df, msg = parse_pdf(uploaded_pdf)
+                    if df is not None:
+                        st.session_state.df = df
+                        st.session_state.manual_entry_mode = False
+                        st.success(msg)
+                        st.rerun()
+                    else:
+                        st.error(msg)
+            
+            with col3:
+                st.markdown("#### 🎮 Demo Data")
+                if st.button("Load Sample Data", use_container_width=True, key="load_demo"):
+                    st.session_state.df = generate_demo_data(st.session_state.monthly_income)
+                    st.session_state.manual_entry_mode = False
+                    st.success("✅ Demo data loaded")
                     st.rerun()
-                else:
-                    st.error(msg)
         
-        with col3:
-            st.markdown("#### 🎮 Demo Data")
-            if st.button("Load Sample Data", use_container_width=True, key="load_demo"):
-                st.session_state.df = generate_demo_data(st.session_state.monthly_income)
-                st.success("✅ Demo data loaded")
-                st.rerun()
+        else:
+            st.info("📊 Upload your bank statement, add expenses manually, or load sample data to get started")
+            
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.markdown("#### 📝 Manual Entry")
+                if st.button("Add Expenses", use_container_width=True, key="manual_entry_btn_main"):
+                    st.session_state.manual_entry_mode = True
+                    st.rerun()
+            
+            with col2:
+                st.markdown("#### 📄 Upload CSV")
+                uploaded_csv = st.file_uploader("Choose CSV file", type=['csv'], key="csv_upload")
+                if uploaded_csv:
+                    df, msg = parse_csv(uploaded_csv)
+                    if df is not None:
+                        st.session_state.df = df
+                        st.success(msg)
+                        st.rerun()
+                    else:
+                        st.error(msg)
+            
+            with col3:
+                st.markdown("#### 📄 Upload PDF")
+                uploaded_pdf = st.file_uploader("Choose PDF file", type=['pdf'], key="pdf_upload")
+                if uploaded_pdf:
+                    df, msg = parse_pdf(uploaded_pdf)
+                    if df is not None:
+                        st.session_state.df = df
+                        st.success(msg)
+                        st.rerun()
+                    else:
+                        st.error(msg)
+            
+            with col4:
+                st.markdown("#### 🎮 Demo Data")
+                if st.button("Load Sample Data", use_container_width=True, key="load_demo"):
+                    st.session_state.df = generate_demo_data(st.session_state.monthly_income)
+                    st.success("✅ Demo data loaded")
+                    st.rerun()
     
     else:
         # Tabs
@@ -573,34 +730,117 @@ else:
         
         # TAB 3: Add Expense Manually
         with tab3:
-            st.markdown("### ➕ Add Expense Manually")
+            st.markdown("### ➕ Add Expenses Manually")
             
-            col1, col2 = st.columns(2)
+            add_mode = st.radio("Choose entry method:", ["Single Expense", "Bulk Entry (Multiple)"], horizontal=True, key="add_mode")
             
-            with col1:
-                expense_date = st.date_input("📅 Date", key="exp_date")
-                expense_desc = st.text_input("📝 Description", placeholder="e.g., Restaurant dinner", key="exp_desc")
+            if add_mode == "Single Expense":
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    expense_date = st.date_input("📅 Date", key="exp_date")
+                    expense_desc = st.text_input("📝 Description", placeholder="e.g., Restaurant dinner", key="exp_desc")
+                
+                with col2:
+                    expense_amount = st.number_input("💰 Amount", min_value=-10000, max_value=100000, value=0, key="exp_amount")
+                    expense_category = st.selectbox("🏷️ Category", list(CATEGORY_KEYWORDS.keys()), key="exp_category")
+                
+                if st.button("✅ Add Transaction", use_container_width=True):
+                    if not expense_desc:
+                        st.error("❌ Please enter a description")
+                    elif expense_amount == 0:
+                        st.error("❌ Please enter an amount")
+                    else:
+                        new_transaction = pd.DataFrame({
+                            'Date': [pd.to_datetime(expense_date)],
+                            'Description': [expense_desc],
+                            'Amount': [expense_amount],
+                            'Category': [expense_category]
+                        })
+                        st.session_state.df = pd.concat([st.session_state.df, new_transaction], ignore_index=True)
+                        st.session_state.df = st.session_state.df.sort_values('Date').reset_index(drop=True)
+                        st.success("✅ Transaction added successfully!")
+                        st.rerun()
             
-            with col2:
-                expense_amount = st.number_input("💰 Amount", min_value=-10000, max_value=100000, value=0, key="exp_amount")
-                expense_category = st.selectbox("🏷️ Category", list(CATEGORY_KEYWORDS.keys()), key="exp_category")
-            
-            if st.button("✅ Add Transaction", use_container_width=True):
-                if not expense_desc:
-                    st.error("❌ Please enter a description")
-                elif expense_amount == 0:
-                    st.error("❌ Please enter an amount")
-                else:
-                    new_transaction = pd.DataFrame({
-                        'Date': [pd.to_datetime(expense_date)],
-                        'Description': [expense_desc],
-                        'Amount': [expense_amount],
-                        'Category': [expense_category]
-                    })
-                    st.session_state.df = pd.concat([st.session_state.df, new_transaction], ignore_index=True)
-                    st.session_state.df = st.session_state.df.sort_values('Date').reset_index(drop=True)
-                    st.success("✅ Transaction added successfully!")
-                    st.rerun()
+            else:  # Bulk Entry
+                st.markdown("#### 📋 Add Multiple Expenses at Once")
+                
+                with st.expander("📊 Monthly Expense Summary", expanded=False):
+                    template = generate_monthly_expense_summary(6)
+                    months = template["months"]
+                    month_dates = template["month_dates"]
+                    default_categories = template["categories"]
+                    
+                    st.markdown("**Add expenses by category for each month:**")
+                    
+                    expense_data = {}
+                    
+                    for category in default_categories.keys():
+                        st.markdown(f"**{category}**")
+                        cols = st.columns(3)
+                        
+                        for idx, month in enumerate(months):
+                            with cols[idx % 3]:
+                                if category not in expense_data:
+                                    expense_data[category] = {}
+                                
+                                amount = st.number_input(
+                                    f"{month}",
+                                    value=0,
+                                    min_value=-100000,
+                                    max_value=0,
+                                    step=-10,
+                                    key=f"bulk_expense_{category}_{idx}"
+                                )
+                                expense_data[category][month] = amount
+                    
+                    if st.button("✅ Add All Expenses", use_container_width=True):
+                        transactions = []
+                        
+                        for category, months_data in expense_data.items():
+                            for idx, (month, amount) in enumerate(months_data.items()):
+                                if amount != 0:
+                                    transactions.append({
+                                        'Date': month_dates[idx],
+                                        'Description': category.split()[1] if len(category.split()) > 1 else category,
+                                        'Amount': amount,
+                                        'Category': category
+                                    })
+                        
+                        if transactions:
+                            df_bulk = pd.DataFrame(transactions)
+                            df_bulk['Date'] = pd.to_datetime(df_bulk['Date'])
+                            st.session_state.df = pd.concat([st.session_state.df, df_bulk], ignore_index=True)
+                            st.session_state.df = st.session_state.df.sort_values('Date').reset_index(drop=True)
+                            st.success(f"✅ Added {len(transactions)} transactions!")
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ Please enter at least one expense")
+                
+                st.divider()
+                st.markdown("#### 📄 Or Paste CSV Data")
+                csv_input = st.text_area(
+                    "Paste CSV data (Date, Description, Amount, Category):",
+                    height=150,
+                    placeholder="2024-01-15,Restaurant,100,🍽️ Food\n2024-01-20,Uber,-50,🚗 Transport",
+                    key="csv_paste"
+                )
+                
+                if st.button("✅ Import CSV Data", use_container_width=True):
+                    try:
+                        from io import StringIO
+                        csv_data = StringIO(csv_input)
+                        df_csv = pd.read_csv(csv_data, names=['Date', 'Description', 'Amount', 'Category'])
+                        df_csv['Date'] = pd.to_datetime(df_csv['Date'])
+                        df_csv['Amount'] = pd.to_numeric(df_csv['Amount'], errors='coerce')
+                        df_csv = df_csv.dropna(subset=['Date', 'Amount'])
+                        
+                        st.session_state.df = pd.concat([st.session_state.df, df_csv], ignore_index=True)
+                        st.session_state.df = st.session_state.df.sort_values('Date').reset_index(drop=True)
+                        st.success(f"✅ Imported {len(df_csv)} transactions!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error parsing CSV: {str(e)}")
         
         # TAB 4: Data
         with tab4:
@@ -611,11 +851,22 @@ else:
             csv = st.session_state.df.to_csv(index=False).encode()
             st.download_button("📥 Download as CSV", csv, "fincoach_transactions.csv", "text/csv", use_container_width=True)
             
-            if st.button("🗑️ Clear All Data", use_container_width=True):
-                st.session_state.df = None
-                st.session_state.chat_history = []
-                st.success("✅ Data cleared")
-                st.rerun()
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if st.button("🔄 Start Over with Manual Entry", use_container_width=True):
+                    st.session_state.df = None
+                    st.session_state.chat_history = []
+                    st.session_state.manual_entry_mode = True
+                    st.success("✅ Ready for manual entry")
+                    st.rerun()
+            
+            with col2:
+                if st.button("🗑️ Clear All Data", use_container_width=True):
+                    st.session_state.df = None
+                    st.session_state.chat_history = []
+                    st.success("✅ Data cleared")
+                    st.rerun()
 
 # ============================================================================
 # FOOTER
