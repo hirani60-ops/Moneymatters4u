@@ -819,28 +819,53 @@ else:
                 
                 st.divider()
                 st.markdown("#### 📄 Or Paste CSV Data")
+                st.info("Format: Date,Description,Amount,Category - one per line. Example: 2024-01-15,Restaurant,100,🍽️ Food")
                 csv_input = st.text_area(
-                    "Paste CSV data (Date, Description, Amount, Category):",
+                    "Paste CSV data:",
                     height=150,
                     placeholder="2024-01-15,Restaurant,100,🍽️ Food\n2024-01-20,Uber,-50,🚗 Transport",
                     key="csv_paste"
                 )
                 
                 if st.button("✅ Import CSV Data", use_container_width=True):
-                    try:
-                        from io import StringIO
-                        csv_data = StringIO(csv_input)
-                        df_csv = pd.read_csv(csv_data, names=['Date', 'Description', 'Amount', 'Category'])
-                        df_csv['Date'] = pd.to_datetime(df_csv['Date'])
-                        df_csv['Amount'] = pd.to_numeric(df_csv['Amount'], errors='coerce')
-                        df_csv = df_csv.dropna(subset=['Date', 'Amount'])
-                        
-                        st.session_state.df = pd.concat([st.session_state.df, df_csv], ignore_index=True)
-                        st.session_state.df = st.session_state.df.sort_values('Date').reset_index(drop=True)
-                        st.success(f"✅ Imported {len(df_csv)} transactions!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Error parsing CSV: {str(e)}")
+                    if not csv_input.strip():
+                        st.warning("⚠️ Please paste CSV data")
+                    else:
+                        try:
+                            from io import StringIO
+                            lines = csv_input.strip().split('\n')
+                            transactions = []
+                            
+                            for line in lines:
+                                if line.strip():
+                                    parts = line.split(',')
+                                    if len(parts) >= 3:
+                                        try:
+                                            trans_date = pd.to_datetime(parts[0].strip())
+                                            trans_desc = parts[1].strip()
+                                            trans_amount = float(parts[2].strip())
+                                            trans_category = parts[3].strip() if len(parts) > 3 else categorize_transaction(trans_desc)
+                                            
+                                            transactions.append({
+                                                'Date': trans_date,
+                                                'Description': trans_desc,
+                                                'Amount': trans_amount,
+                                                'Category': trans_category
+                                            })
+                                        except ValueError as ve:
+                                            st.warning(f"⚠️ Skipped invalid line: {line}")
+                                            continue
+                            
+                            if transactions:
+                                df_csv = pd.DataFrame(transactions)
+                                st.session_state.df = pd.concat([st.session_state.df, df_csv], ignore_index=True)
+                                st.session_state.df = st.session_state.df.sort_values('Date').reset_index(drop=True)
+                                st.success(f"✅ Imported {len(df_csv)} transactions!")
+                                st.rerun()
+                            else:
+                                st.error("❌ No valid transactions found in CSV data")
+                        except Exception as e:
+                            st.error(f"❌ Error parsing CSV: {str(e)}")
         
         # TAB 4: Data
         with tab4:
